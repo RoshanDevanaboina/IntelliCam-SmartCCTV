@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}CC TV — Events{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Event Timeline</h1>
+        <p class="text-gray-400 text-sm mt-1" id="event-count">Loading events...</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <!-- Filters -->
+        <select id="filter-camera" onchange="loadEvents()" class="input-field text-sm w-40">
+            <option value="">All Cameras</option>
+        </select>
+        <select id="filter-type" onchange="loadEvents()" class="input-field text-sm w-36">
+            <option value="">All Types</option>
+            <option value="motion">Motion</option>
+            <option value="person">Person</option>
+            <option value="car">Vehicle</option>
+            <option value="dog">Dog</option>
+            <option value="cat">Cat</option>
+        </select>
+        <button onclick="clearAllEvents()" class="btn btn-danger text-sm">
+            <i class="fas fa-trash mr-1"></i> Clear All
+        </button>
+    </div>
+</div>
+
+<!-- Events Grid -->
+<div id="events-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <!-- Populated by JavaScript -->
+</div>
+
+<!-- Loading & Empty States -->
+<div id="events-loading" class="flex justify-center py-12">
+    <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+</div>
+
+<div id="events-empty" class="hidden flex flex-col items-center justify-center py-24 text-center">
+    <div class="text-6xl mb-6">📭</div>
+    <h2 class="text-xl font-semibold mb-2">No Events Yet</h2>
+    <p class="text-gray-400 max-w-md">
+        Events will appear here when motion or objects are detected by your cameras.
+    </p>
+</div>
+
+<!-- Pagination -->
+<div id="pagination" class="hidden flex items-center justify-center gap-4 mt-8">
+    <button id="prev-btn" onclick="changePage(-1)" class="btn btn-secondary" disabled>
+        <i class="fas fa-chevron-left mr-1"></i> Previous
+    </button>
+    <span id="page-info" class="text-gray-400 text-sm">Page 1 of 1</span>
+    <button id="next-btn" onclick="changePage(1)" class="btn btn-secondary" disabled>
+        Next <i class="fas fa-chevron-right ml-1"></i>
+    </button>
+</div>
+
+<!-- Event Detail Modal -->
+<div id="event-modal" class="modal hidden">
+    <div class="modal-backdrop" onclick="closeModal()"></div>
+    <div class="modal-content">
+        <div class="flex items-center justify-between mb-4">
+            <h3 id="modal-title" class="text-lg font-bold">Event Details</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-white">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <div id="modal-body">
+            <img id="modal-snapshot" src="" alt="Event snapshot" class="w-full rounded-lg mb-4">
+            <div id="modal-details" class="space-y-2 text-sm"></div>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <a id="modal-recording-link" href="#" target="_blank" class="btn btn-primary flex-1 text-center hidden">
+                <i class="fas fa-play mr-1"></i> Play Recording
+            </a>
+            <button id="modal-delete-btn" onclick="" class="btn btn-danger">
+                <i class="fas fa-trash mr-1"></i> Delete
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPage = 1;
+    let totalPages = 1;
+
+    // Load camera list for filter
+    fetch('/api/cameras')
+        .then(r => r.json())
+        .then(cameras => {
+            const select = document.getElementById('filter-camera');
+            cameras.forEach(cam => {
+                const opt = document.createElement('option');
+                opt.value = cam.id;
+                opt.textContent = cam.name;
+                select.appendChild(opt);
+            });
+        });
+
+    function loadEvents() {
+        const cameraId = document.getElementById('filter-camera').value;
+        const eventType = document.getElementById('filter-type').value;
+
+        let url = `/api/events?page=${currentPage}&per_page=24`;
+        if (cameraId) url += `&camera_id=${cameraId}`;
+        if (eventType) url += `&type=${eventType}`;
+
+        document.getElementById('events-loading').classList.remove('hidden');
+        document.getElementById('events-empty').classList.add('hidden');
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('events-container');
+                container.innerHTML = '';
+                document.getElementById('events-loading').classList.add('hidden');
+
+                if (data.events.length === 0) {
+                    document.getElementById('events-empty').classList.remove('hidden');
+                    document.getElementById('pagination').classList.add('hidden');
+                    document.getElementById('event-count').textContent = 'No events found';
+                    return;
+                }
+
+                document.getElementById('event-count').textContent = `${data.total} event(s) total`;
+                totalPages = data.pages;
+                updatePagination();
+
+                data.events.forEach(event => {
+                    container.appendChild(createEventCard(event));
+                });
+            })
+            .catch(err => {
+                document.getElementById('events-loading').classList.add('hidden');
+                console.error('Failed to load events:', err);
+            });
+    }
+
+    function createEventCard(event) {
+        const card = document.createElement('div');
+        card.className = 'event-card cursor-pointer';
+        card.onclick = () => showEventDetail(event);
+
+        const typeIcon = {
+            motion: 'fas fa-running',
+            person: 'fas fa-user',
+            car: 'fas fa-car',
+            truck: 'fas fa-truck',
+            dog: 'fas fa-dog',
+            cat: 'fas fa-cat',
+            bird: 'fas fa-dove',
+            bicycle: 'fas fa-bicycle',
+        }[event.event_type] || 'fas fa-exclamation-triangle';
+
+        const typeColor = {
+            motion: 'text-green-400',
+            person: 'text-red-400',
+            car: 'text-blue-400',
+            truck: 'text-blue-400',
+            dog: 'text-yellow-400',
+            cat: 'text-yellow-400',
+        }[event.event_type] || 'text-gray-400';
+
+        const time = new Date(event.created_at).toLocaleString();
+        const confidence = (event.confidence * 100).toFixed(0);
+
+        const snapshotSrc = event.snapshot_path 
+            ? (event.snapshot_path.startsWith('http') ? event.snapshot_path : `/media/snapshots/${event.snapshot_path}`)
+            : null;
+
+        card.innerHTML = `
+            <div class="relative">
+                ${snapshotSrc
+                    ? `<img src="${snapshotSrc}" alt="Event" class="w-full h-40 object-cover rounded-t-lg">`
+                    : `<div class="w-full h-40 bg-gray-800 rounded-t-lg flex items-center justify-center">
+                         <i class="${typeIcon} text-4xl ${typeColor}"></i>
+                       </div>`}
+                <span class="absolute top-2 right-2 bg-black bg-opacity-70 text-xs px-2 py-1 rounded">
+                    ${confidence}%
+                </span>
+            </div>
+            <div class="p-3">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="flex items-center gap-1 ${typeColor} text-sm font-medium">
+                        <i class="${typeIcon}"></i>
+                        ${event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1)}
+                        ${event.track_id ? `<span class="text-xs bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded ml-1">#${event.track_id}</span>` : ''}
+                    </span>
+                    <span class="text-xs text-gray-500">${event.camera_name}</span>
+                </div>
+                <span class="text-xs text-gray-500">${time}</span>
+            </div>
+        `;
+        return card;
+    }
+
+    function showEventDetail(event) {
+        document.getElementById('modal-title').textContent =
+            `${event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1)} — ${event.camera_name}`;
+
+        const snapshot = document.getElementById('modal-snapshot');
+        if (event.snapshot_path) {
+            snapshot.src = event.snapshot_path.startsWith('http') ? event.snapshot_path : `/media/snapshots/${event.snapshot_path}`;
+            snapshot.classList.remove('hidden');
+        } else {
+            snapshot.classList.add('hidden');
+        }
+
+        const details = document.getElementById('modal-details');
+        const time = new Date(event.created_at).toLocaleString();
+        details.innerHTML = `
+            <p><strong>Type:</strong> ${event.event_type}</p>
+            ${event.track_id ? `<p><strong>Track ID:</strong> #${event.track_id}</p>` : ''}
+            <p><strong>Camera:</strong> ${event.camera_name}</p>
+            <p><strong>Confidence:</strong> ${(event.confidence * 100).toFixed(1)}%</p>
+            <p><strong>Time:</strong> ${time}</p>
+            ${event.details ? `<p><strong>Details:</strong> <code class="text-xs">${event.details}</code></p>` : ''}
+        `;
+
+        const recLink = document.getElementById('modal-recording-link');
+        if (event.recording_path) {
+            recLink.href = event.recording_path.startsWith('http') ? event.recording_path : `/media/recordings/${event.recording_path}`;
+            recLink.classList.remove('hidden');
+        } else {
+            recLink.classList.add('hidden');
+        }
+
+        document.getElementById('modal-delete-btn').onclick = () => deleteEvent(event.id);
+        document.getElementById('event-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('event-modal').classList.add('hidden');
+    }
+
+    function deleteEvent(eventId) {
+        if (!confirm('Delete this event?')) return;
+        fetch(`/api/events/${eventId}`, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(() => {
+                closeModal();
+                loadEvents();
+                showToast('Event deleted', 'success');
+            });
+    }
+
+    function clearAllEvents() {
+        if (!confirm('Delete ALL events? This cannot be undone.')) return;
+        fetch('/api/events/clear', { method: 'POST' })
+            .then(r => r.json())
+            .then(() => {
+                loadEvents();
+                showToast('All events cleared', 'success');
+            });
+    }
+
+    function changePage(delta) {
+        currentPage = Math.max(1, Math.min(totalPages, currentPage + delta));
+        loadEvents();
+    }
+
+    function updatePagination() {
+        const pagination = document.getElementById('pagination');
+        pagination.classList.remove('hidden');
+        document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
+        document.getElementById('prev-btn').disabled = currentPage <= 1;
+        document.getElementById('next-btn').disabled = currentPage >= totalPages;
+    }
+
+    // Initial load
+    loadEvents();
+
+    // Live event updates
+    if (typeof socket !== 'undefined') {
+        socket.on('detection_event', () => {
+            if (currentPage === 1) loadEvents();
+        });
+    }
+</script>
+{% endblock %}

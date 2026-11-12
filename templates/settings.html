@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+{% block title %}CC TV — Settings{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Settings & Cloud</h1>
+        <p class="text-gray-400 text-sm mt-1">Manage cameras, Supabase cloud sync, and mobile notifications</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left Column: Add Camera Form & Cloud Config -->
+    <div class="lg:col-span-1 space-y-6">
+        <!-- Add/Edit Camera Form -->
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-4">
+                <i class="fas fa-plus-circle text-blue-400 mr-2"></i>
+                <span id="form-title">Add Camera</span>
+            </h2>
+            <form id="camera-form" onsubmit="saveCamera(event)">
+                <input type="hidden" id="edit-camera-id" value="">
+
+                <div class="form-group">
+                    <label for="cam-name" class="form-label">Camera Name</label>
+                    <input type="text" id="cam-name" class="input-field" placeholder="e.g. Front Door" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="cam-source-type" class="form-label">Source Type</label>
+                    <select id="cam-source-type" class="input-field" onchange="updateSourcePlaceholder()">
+                        <option value="rtsp">RTSP Stream (IP Camera)</option>
+                        <option value="webhook">Cloud Webhook (No Laptop Needed)</option>
+                        <option value="usb">USB Camera / Webcam</option>
+                        <option value="file">Video File</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="cam-source" class="form-label">Source</label>
+                    <input type="text" id="cam-source" class="input-field"
+                           placeholder="rtsp://user:pass@192.168.1.100:554/stream" required>
+                    <p class="text-xs text-gray-500 mt-1" id="source-hint">
+                        RTSP URL from your IP camera
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label for="cam-sensitivity" class="form-label">
+                        Motion Sensitivity: <span id="sensitivity-value">25</span>
+                    </label>
+                    <input type="range" id="cam-sensitivity" min="5" max="100" value="25"
+                           class="w-full" oninput="document.getElementById('sensitivity-value').textContent=this.value">
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>Very Sensitive</span>
+                        <span>Less Sensitive</span>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="cam-enabled" checked class="toggle-input">
+                        <span class="toggle-switch"></span>
+                        <span>Enabled</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="cam-recording" checked class="toggle-input">
+                        <span class="toggle-switch"></span>
+                        <span>Recording (Clips)</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="cam-motion" checked class="toggle-input">
+                        <span class="toggle-switch"></span>
+                        <span>Motion Detection</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="cam-object" class="toggle-input">
+                        <span class="toggle-switch"></span>
+                        <span>AI Object Detection (YOLO)</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="cam-tracking" checked class="toggle-input">
+                        <span class="toggle-switch"></span>
+                        <span>Object Tracking (ByteTrack IDs)</span>
+                    </label>
+                </div>
+
+                <div class="flex gap-2 mt-6">
+                    <button type="submit" class="btn btn-primary flex-1">
+                        <i class="fas fa-save mr-1"></i> <span id="form-submit-text">Add Camera</span>
+                    </button>
+                    <button type="button" id="cancel-edit-btn" onclick="cancelEdit()" class="btn btn-secondary hidden">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Cloud & Mobile Alerts Card (Zero-Laptop Mode) -->
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3">
+                <i class="fas fa-cloud text-blue-400 mr-2"></i> Cloud & Mobile Alerts
+            </h2>
+            <p class="text-xs text-gray-400 mb-4">
+                Receive instant motion alerts to your phone via Telegram or WhatsApp with snapshots, stored in Supabase.
+            </p>
+
+            <div class="space-y-3 text-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Database</span>
+                    <span id="cloud-db-status" class="badge badge-offline">Checking...</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Supabase Storage</span>
+                    <span id="cloud-storage-status" class="badge badge-offline">Checking...</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Telegram Bot</span>
+                    <span id="cloud-tg-status" class="badge badge-offline">Checking...</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">WhatsApp Alert</span>
+                    <span id="cloud-wa-status" class="badge badge-offline">Checking...</span>
+                </div>
+
+                <button onclick="sendTestAlert()" class="btn btn-secondary w-full text-sm mt-2">
+                    <i class="fas fa-paper-plane mr-2 text-blue-400"></i> Send Test Notification
+                </button>
+
+                <hr class="border-gray-800 my-2">
+
+                <!-- Direct Camera Push Webhook -->
+                <div>
+                    <label class="text-xs text-gray-400 block mb-1 font-semibold">
+                        <i class="fas fa-satellite-dish mr-1 text-green-400"></i> Direct Camera Push URL (Zero Laptop):
+                    </label>
+                    <div class="flex gap-2">
+                        <input type="text" id="webhook-url-input" readonly
+                               class="input-field text-xs bg-gray-900 font-mono py-1.5 text-gray-300">
+                        <button onclick="copyWebhookUrl()" class="btn btn-secondary text-xs px-3" title="Copy URL">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                    <p class="text-xxs text-gray-500 mt-1.5 leading-relaxed">
+                        Configure your IP camera (Tapo, Reolink, Dahua, or mobile camera app) to HTTP POST motion snapshots to this URL. Alerts will go directly to WhatsApp/Telegram without your laptop!
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Info Card -->
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-4">
+                <i class="fas fa-info-circle text-blue-400 mr-2"></i> System & Storage
+            </h2>
+            <div id="system-info" class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Recordings</span>
+                    <span id="info-recordings">—</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Snapshots</span>
+                    <span id="info-snapshots">—</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Total Storage</span>
+                    <span id="info-storage" class="font-medium">—</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Total Events</span>
+                    <span id="info-events">—</span>
+                </div>
+                <hr class="border-gray-700">
+                <button onclick="cleanupStorage()" class="btn btn-secondary w-full text-sm">
+                    <i class="fas fa-broom mr-1"></i> Cleanup Old Recordings
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Camera List -->
+    <div class="lg:col-span-2">
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-4">
+                <i class="fas fa-video text-blue-400 mr-2"></i>
+                Cameras (<span id="camera-count">0</span>)
+            </h2>
+            <div id="camera-list" class="space-y-3">
+                <!-- Populated by JavaScript -->
+            </div>
+            <div id="no-cameras" class="hidden text-center py-8 text-gray-500">
+                <i class="fas fa-video-slash text-3xl mb-2"></i>
+                <p>No cameras configured yet</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function loadCameras() {
+        fetch('/api/cameras')
+            .then(r => r.json())
+            .then(cameras => {
+                const list = document.getElementById('camera-list');
+                const noCams = document.getElementById('no-cameras');
+                document.getElementById('camera-count').textContent = cameras.length;
+
+                if (cameras.length === 0) {
+                    list.innerHTML = '';
+                    noCams.classList.remove('hidden');
+                    return;
+                }
+
+                noCams.classList.add('hidden');
+                list.innerHTML = cameras.map(cam => {
+                    const connected = cam.status && cam.status.connected;
+                    const fps = cam.status ? cam.status.fps : 0;
+                    return `
+                        <div class="bg-gray-800 rounded-lg p-4 flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-24 h-16 bg-gray-900 rounded overflow-hidden flex-shrink-0">
+                                    ${cam.enabled
+                                        ? `<img src="/api/snapshot/${cam.id}" alt="${cam.name}"
+                                               class="w-full h-full object-cover"
+                                               onerror="this.style.display='none'">`
+                                        : `<div class="w-full h-full flex items-center justify-center text-gray-600">
+                                             <i class="fas fa-power-off"></i>
+                                           </div>`}
+                                </div>
+                                <div>
+                                    <h3 class="font-medium">${cam.name}</h3>
+                                    <p class="text-xs text-gray-400 mt-1">${cam.source_type.toUpperCase()} — ${cam.source.length > 40 ? cam.source.substring(0, 40) + '...' : cam.source}</p>
+                                    <div class="flex items-center gap-3 mt-1 flex-wrap">
+                                        <span class="flex items-center gap-1 text-xs ${connected ? 'text-green-400' : 'text-red-400'}">
+                                            <i class="fas fa-circle text-xxs"></i>
+                                            ${connected ? 'Connected' : cam.enabled ? (cam.source_type === 'webhook' ? 'Listening (Cloud)' : 'Disconnected') : 'Disabled'}
+                                        </span>
+                                        ${fps > 0 ? `<span class="text-xs text-gray-500">${fps} FPS</span>` : ''}
+                                        ${cam.motion_detection ? '<span class="text-xs text-green-400"><i class="fas fa-running mr-0.5"></i>Motion</span>' : ''}
+                                        ${cam.object_detection ? '<span class="text-xs text-blue-400"><i class="fas fa-brain mr-0.5"></i>AI YOLO</span>' : ''}
+                                        ${cam.object_tracking ? '<span class="text-xs text-purple-400"><i class="fas fa-crosshairs mr-0.5"></i>Tracking</span>' : ''}
+                                        ${cam.recording_enabled ? '<span class="text-xs text-red-400"><i class="fas fa-circle mr-0.5"></i>REC</span>' : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="editCamera(${cam.id})" class="btn btn-secondary text-sm py-1 px-3" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="deleteCamera(${cam.id}, '${cam.name}')" class="btn btn-danger text-sm py-1 px-3" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            });
+    }
+
+    function saveCamera(e) {
+        e.preventDefault();
+        const editId = document.getElementById('edit-camera-id').value;
+        const data = {
+            name: document.getElementById('cam-name').value,
+            source: document.getElementById('cam-source').value,
+            source_type: document.getElementById('cam-source-type').value,
+            enabled: document.getElementById('cam-enabled').checked,
+            recording_enabled: document.getElementById('cam-recording').checked,
+            motion_detection: document.getElementById('cam-motion').checked,
+            object_detection: document.getElementById('cam-object').checked,
+            object_tracking: document.getElementById('cam-tracking').checked,
+            motion_sensitivity: parseInt(document.getElementById('cam-sensitivity').value),
+        };
+
+        const url = editId ? `/api/cameras/${editId}` : '/api/cameras';
+        const method = editId ? 'PUT' : 'POST';
+
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        })
+            .then(r => r.json())
+            .then(result => {
+                if (result.error) {
+                    showToast(result.error, 'error');
+                    return;
+                }
+                showToast(`Camera ${editId ? 'updated' : 'added'} successfully`, 'success');
+                resetForm();
+                loadCameras();
+            })
+            .catch(() => showToast('Failed to save camera', 'error'));
+    }
+
+    function editCamera(id) {
+        fetch(`/api/cameras`)
+            .then(r => r.json())
+            .then(cameras => {
+                const cam = cameras.find(c => c.id === id);
+                if (!cam) return;
+
+                document.getElementById('edit-camera-id').value = cam.id;
+                document.getElementById('cam-name').value = cam.name;
+                document.getElementById('cam-source').value = cam.source;
+                document.getElementById('cam-source-type').value = cam.source_type;
+                document.getElementById('cam-enabled').checked = cam.enabled;
+                document.getElementById('cam-recording').checked = cam.recording_enabled;
+                document.getElementById('cam-motion').checked = cam.motion_detection;
+                document.getElementById('cam-object').checked = cam.object_detection;
+                document.getElementById('cam-tracking').checked = cam.object_tracking !== false;
+                document.getElementById('cam-sensitivity').value = cam.motion_sensitivity;
+                document.getElementById('sensitivity-value').textContent = cam.motion_sensitivity;
+
+                document.getElementById('form-title').textContent = 'Edit Camera';
+                document.getElementById('form-submit-text').textContent = 'Update Camera';
+                document.getElementById('cancel-edit-btn').classList.remove('hidden');
+
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+    }
+
+    function cancelEdit() {
+        resetForm();
+    }
+
+    function resetForm() {
+        document.getElementById('camera-form').reset();
+        document.getElementById('edit-camera-id').value = '';
+        document.getElementById('form-title').textContent = 'Add Camera';
+        document.getElementById('form-submit-text').textContent = 'Add Camera';
+        document.getElementById('cancel-edit-btn').classList.add('hidden');
+        document.getElementById('sensitivity-value').textContent = '25';
+    }
+
+    function deleteCamera(id, name) {
+        if (!confirm(`Delete camera "${name}"? This will stop the stream and remove all settings.`)) return;
+        fetch(`/api/cameras/${id}`, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(() => {
+                showToast('Camera deleted', 'success');
+                loadCameras();
+            })
+            .catch(() => showToast('Failed to delete camera', 'error'));
+    }
+
+    function updateSourcePlaceholder() {
+        const type = document.getElementById('cam-source-type').value;
+        const input = document.getElementById('cam-source');
+        const hint = document.getElementById('source-hint');
+        const placeholders = {
+            rtsp: { placeholder: 'rtsp://user:pass@192.168.1.100:554/stream', hint: 'RTSP URL from your IP camera' },
+            webhook: { placeholder: 'cloud-webhook', hint: 'Motion pushed directly from camera to cloud webhook (no laptop needed)' },
+            usb: { placeholder: '0', hint: 'Camera device index (0 = default webcam)' },
+            file: { placeholder: 'C:\\path\\to\\video.mp4', hint: 'Path to a local video file' },
+        };
+        const p = placeholders[type] || placeholders.rtsp;
+        input.placeholder = p.placeholder;
+        hint.textContent = p.hint;
+    }
+
+    function loadSystemInfo() {
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                // Storage
+                document.getElementById('info-recordings').textContent =
+                    `${data.storage.recordings_count} files (${data.storage.recordings_size_mb} MB)`;
+                document.getElementById('info-snapshots').textContent =
+                    `${data.storage.snapshots_count} files (${data.storage.snapshots_size_mb} MB)`;
+                document.getElementById('info-storage').textContent = `${data.storage.total_size_mb} MB`;
+                document.getElementById('info-events').textContent = data.events.total;
+
+                // Cloud Status
+                const dbStatus = document.getElementById('cloud-db-status');
+                if (data.cloud && data.cloud.database.includes('Supabase')) {
+                    dbStatus.className = 'badge badge-online';
+                    dbStatus.textContent = 'Supabase PostgreSQL';
+                } else {
+                    dbStatus.className = 'badge badge-offline';
+                    dbStatus.textContent = 'Local SQLite';
+                }
+
+                const storageStatus = document.getElementById('cloud-storage-status');
+                if (data.cloud && data.cloud.supabase_enabled) {
+                    storageStatus.className = 'badge badge-online';
+                    storageStatus.textContent = 'Connected (CDN)';
+                } else {
+                    storageStatus.className = 'badge badge-offline';
+                    storageStatus.textContent = 'Local Disk Only';
+                }
+
+                // Notifications
+                const tgStatus = document.getElementById('cloud-tg-status');
+                if (data.notifications && data.notifications.telegram_enabled) {
+                    tgStatus.className = 'badge badge-online';
+                    tgStatus.textContent = 'Active (Telegram)';
+                } else {
+                    tgStatus.className = 'badge badge-offline';
+                    tgStatus.textContent = 'Not Configured';
+                }
+
+                const waStatus = document.getElementById('cloud-wa-status');
+                if (data.notifications && data.notifications.whatsapp_enabled) {
+                    waStatus.className = 'badge badge-online';
+                    waStatus.textContent = `Active (${data.notifications.whatsapp_provider || 'WhatsApp'})`;
+                } else {
+                    waStatus.className = 'badge badge-offline';
+                    waStatus.textContent = 'Not Configured';
+                }
+            })
+            .catch(() => {});
+    }
+
+    function sendTestAlert() {
+        fetch('/api/notifications/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel: 'all' })
+        })
+            .then(r => r.json())
+            .then(data => {
+                showToast(data.message, 'success');
+            })
+            .catch(() => showToast('Failed to send test alert', 'error'));
+    }
+
+    function initWebhookUrl() {
+        const url = `${window.location.origin}/api/camera-webhook?api_key=cctv-camera-secret-key`;
+        const el = document.getElementById('webhook-url-input');
+        if (el) el.value = url;
+    }
+
+    function copyWebhookUrl() {
+        const el = document.getElementById('webhook-url-input');
+        if (el) {
+            navigator.clipboard.writeText(el.value).then(() => {
+                showToast('Webhook URL copied to clipboard!', 'info');
+            });
+        }
+    }
+
+    function cleanupStorage() {
+        if (!confirm('Delete recordings older than the retention period?')) return;
+        fetch('/api/storage/cleanup', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                showToast(data.message, 'success');
+                loadSystemInfo();
+            });
+    }
+
+    // Initial load
+    loadCameras();
+    loadSystemInfo();
+    initWebhookUrl();
+    setInterval(loadSystemInfo, 30000);
+</script>
+{% endblock %}

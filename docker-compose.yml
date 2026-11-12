@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  cctv:
+    build: .
+    container_name: cctv-cloud
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - DATABASE_URL=${DATABASE_URL:-}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_KEY=${SUPABASE_KEY:-}
+      - TELEGRAM_ENABLED=${TELEGRAM_ENABLED:-false}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - WHATSAPP_ENABLED=${WHATSAPP_ENABLED:-false}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_WHATSAPP_FROM=${TWILIO_WHATSAPP_FROM:-}
+      - WHATSAPP_TO=${WHATSAPP_TO:-}
+    volumes:
+      - ./recordings:/app/recordings
+      - ./snapshots:/app/snapshots

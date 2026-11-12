@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}CC TV — {{ camera.name }}{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+    <div class="flex items-center gap-3">
+        <a href="/" class="text-gray-400 hover:text-white transition">
+            <i class="fas fa-arrow-left text-lg"></i>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold">{{ camera.name }}</h1>
+            <p class="text-gray-400 text-sm">
+                {{ camera.source_type.upper() }} —
+                <span id="player-status" class="text-green-400">Connected</span>
+            </p>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <button onclick="takeSnapshotFull()" class="btn btn-secondary">
+            <i class="fas fa-camera mr-1"></i> Snapshot
+        </button>
+        <button onclick="toggleFullscreen()" class="btn btn-secondary">
+            <i class="fas fa-expand mr-1"></i> Fullscreen
+        </button>
+    </div>
+</div>
+
+<!-- Video Player -->
+<div id="player-container" class="relative bg-black rounded-xl overflow-hidden" style="max-height: 75vh;">
+    <img id="player-stream" src="/api/stream/{{ camera.id }}?quality=85&fps=20"
+         alt="{{ camera.name }}" class="w-full h-full object-contain"
+         onerror="document.getElementById('player-status').textContent='Disconnected'; document.getElementById('player-status').className='text-red-400';">
+
+    <!-- Overlay controls -->
+    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="status-dot connected" id="player-dot"></span>
+                <span class="text-sm text-white">{{ camera.name }}</span>
+                <span class="text-xs text-gray-400" id="player-fps"></span>
+            </div>
+            <span class="text-xs text-gray-400" id="player-time"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Camera Info -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+    <div class="card">
+        <h3 class="text-sm font-semibold text-gray-400 mb-3">Camera Details</h3>
+        <div class="space-y-2 text-sm">
+            <div class="flex justify-between">
+                <span class="text-gray-400">Source</span>
+                <span class="text-right max-w-xs truncate">{{ camera.source }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-400">Type</span>
+                <span>{{ camera.source_type.upper() }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-400">Motion Detection</span>
+                <span class="{{ 'text-green-400' if camera.motion_detection else 'text-gray-500' }}">
+                    {{ 'Active' if camera.motion_detection else 'Off' }}
+                </span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-400">Object Detection</span>
+                <span class="{{ 'text-blue-400' if camera.object_detection else 'text-gray-500' }}">
+                    {{ 'Active' if camera.object_detection else 'Off' }}
+                </span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-400">Recording</span>
+                <span class="{{ 'text-red-400' if camera.recording_enabled else 'text-gray-500' }}">
+                    {{ 'Recording' if camera.recording_enabled else 'Off' }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="text-sm font-semibold text-gray-400 mb-3">Recent Events</h3>
+        <div id="recent-events" class="space-y-2 text-sm">
+            <p class="text-gray-500">Loading...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Update time display
+    setInterval(() => {
+        document.getElementById('player-time').textContent = new Date().toLocaleTimeString();
+    }, 1000);
+
+    // Load recent events for this camera
+    fetch('/api/events?camera_id={{ camera.id }}&per_page=5')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('recent-events');
+            if (data.events.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">No events yet</p>';
+                return;
+            }
+            container.innerHTML = data.events.map(e => `
+                <div class="flex items-center justify-between py-1 border-b border-gray-800">
+                    <span class="flex items-center gap-2">
+                        <span class="text-xs ${e.event_type === 'motion' ? 'text-green-400' : 'text-red-400'}">
+                            ${e.event_type}
+                        </span>
+                        <span class="text-xs text-gray-500">${(e.confidence * 100).toFixed(0)}%</span>
+                    </span>
+                    <span class="text-xs text-gray-500">${new Date(e.created_at).toLocaleString()}</span>
+                </div>
+            `).join('');
+        });
+
+    // Update camera status
+    setInterval(() => {
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                const status = data.cameras.streams[{{ camera.id }}];
+                if (status) {
+                    const dot = document.getElementById('player-dot');
+                    const statusText = document.getElementById('player-status');
+                    dot.className = `status-dot ${status.connected ? 'connected' : 'disconnected'}`;
+                    statusText.textContent = status.connected ? 'Connected' : 'Disconnected';
+                    statusText.className = status.connected ? 'text-green-400' : 'text-red-400';
+                    if (status.fps > 0) {
+                        document.getElementById('player-fps').textContent = `${status.fps} FPS`;
+                    }
+                }
+            });
+    }, 5000);
+
+    function takeSnapshotFull() {
+        window.open('/api/snapshot/{{ camera.id }}', '_blank');
+    }
+
+    function toggleFullscreen() {
+        const el = document.getElementById('player-container');
+        if (!document.fullscreenElement) {
+            el.requestFullscreen().catch(() => {});
+        } else {
+            document.exitFullscreen();
+        }
+    }
+</script>
+{% endblock %}

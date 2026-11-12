@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}CC TV — Live Dashboard{% endblock %}
+
+{% block content %}
+<!-- Status Bar -->
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Live Dashboard</h1>
+        <p class="text-gray-400 text-sm mt-1">
+            <span id="active-cameras">{{ cameras|length }}</span> camera(s) active
+        </p>
+    </div>
+    <div class="flex items-center gap-3">
+        <!-- Grid size selector -->
+        <div class="flex items-center bg-gray-800 rounded-lg overflow-hidden">
+            <button onclick="setGridSize(1)" class="grid-btn" data-grid="1" title="1 Camera">
+                <i class="fas fa-square"></i>
+            </button>
+            <button onclick="setGridSize(2)" class="grid-btn active" data-grid="2" title="2x2 Grid">
+                <i class="fas fa-th-large"></i>
+            </button>
+            <button onclick="setGridSize(3)" class="grid-btn" data-grid="3" title="3x3 Grid">
+                <i class="fas fa-th"></i>
+            </button>
+        </div>
+        <button onclick="refreshAllStreams()" class="btn btn-secondary" title="Refresh Streams">
+            <i class="fas fa-sync-alt mr-1"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Camera Grid -->
+{% if cameras|length > 0 %}
+<div id="camera-grid" class="camera-grid grid-2">
+    {% for camera in cameras %}
+    <div class="camera-card" data-camera-id="{{ camera.id }}">
+        <div class="camera-header">
+            <div class="flex items-center gap-2">
+                <span class="status-dot connected" id="dot-{{ camera.id }}"></span>
+                <span class="font-medium text-sm">{{ camera.name }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                {% if camera.motion_detection %}
+                <span class="text-xs text-green-400" title="Motion Detection Active">
+                    <i class="fas fa-running"></i>
+                </span>
+                {% endif %}
+                {% if camera.object_detection %}
+                <span class="text-xs text-blue-400" title="AI Detection Active">
+                    <i class="fas fa-brain"></i>
+                </span>
+                {% endif %}
+                <div class="dropdown">
+                    <button class="text-gray-400 hover:text-white p-1" onclick="toggleDropdown(this)">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="dropdown-menu hidden">
+                        <a href="/player/{{ camera.id }}" class="dropdown-item">
+                            <i class="fas fa-expand mr-2"></i> Fullscreen
+                        </a>
+                        <button class="dropdown-item" onclick="takeSnapshot({{ camera.id }})">
+                            <i class="fas fa-camera mr-2"></i> Snapshot
+                        </button>
+                        <button class="dropdown-item" onclick="restartCamera({{ camera.id }})">
+                            <i class="fas fa-redo mr-2"></i> Restart
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="camera-feed" ondblclick="window.location='/player/{{ camera.id }}'">
+            <img src="/api/stream/{{ camera.id }}" alt="{{ camera.name }}"
+                 class="stream-img" loading="lazy"
+                 onerror="this.parentElement.classList.add('no-signal')">
+            <div class="no-signal-overlay">
+                <i class="fas fa-video-slash text-4xl text-gray-600 mb-2"></i>
+                <span class="text-gray-500">No Signal</span>
+            </div>
+            <div class="camera-overlay">
+                <span class="text-xs bg-black bg-opacity-60 px-2 py-1 rounded" id="fps-{{ camera.id }}"></span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<!-- Empty State -->
+<div class="flex flex-col items-center justify-center py-24 text-center">
+    <div class="text-6xl mb-6">📷</div>
+    <h2 class="text-2xl font-semibold mb-2">No Cameras Configured</h2>
+    <p class="text-gray-400 mb-6 max-w-md">
+        Add your first camera to start monitoring. CC TV supports RTSP streams, USB cameras, and video files.
+    </p>
+    <a href="/settings" class="btn btn-primary">
+        <i class="fas fa-plus mr-2"></i> Add Camera
+    </a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function setGridSize(size) {
+        const grid = document.getElementById('camera-grid');
+        if (!grid) return;
+        grid.className = `camera-grid grid-${size}`;
+        document.querySelectorAll('.grid-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`[data-grid="${size}"]`).classList.add('active');
+    }
+
+    function refreshAllStreams() {
+        document.querySelectorAll('.stream-img').forEach(img => {
+            const src = img.src.split('?')[0];
+            img.src = src + '?t=' + Date.now();
+            img.parentElement.classList.remove('no-signal');
+        });
+        showToast('Streams refreshed', 'info');
+    }
+
+    function takeSnapshot(cameraId) {
+        window.open(`/api/snapshot/${cameraId}`, '_blank');
+    }
+
+    function restartCamera(cameraId) {
+        fetch(`/api/cameras/${cameraId}/restart`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                showToast(data.message || 'Camera restarted', 'success');
+                // Refresh the stream after a delay
+                setTimeout(() => {
+                    const img = document.querySelector(`[data-camera-id="${cameraId}"] .stream-img`);
+                    if (img) {
+                        const src = img.src.split('?')[0];
+                        img.src = src + '?t=' + Date.now();
+                    }
+                }, 3000);
+            })
+            .catch(() => showToast('Failed to restart camera', 'error'));
+    }
+
+    // Update camera status periodically
+    setInterval(() => {
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                const streams = data.cameras.streams;
+                for (const [id, status] of Object.entries(streams)) {
+                    const dot = document.getElementById(`dot-${id}`);
+                    if (dot) {
+                        dot.className = `status-dot ${status.connected ? 'connected' : 'disconnected'}`;
+                    }
+                    const fps = document.getElementById(`fps-${id}`);
+                    if (fps && status.fps > 0) {
+                        fps.textContent = `${status.fps} FPS`;
+                    }
+                }
+            })
+            .catch(() => {});
+    }, 5000);
+</script>
+{% endblock %}
