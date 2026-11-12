@@ -25,10 +25,10 @@ serve(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "https://kuoljbtuexxqfvhkjsdc.supabase.co";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const telegramToken = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
-    const telegramChatId = Deno.env.get("TELEGRAM_CHAT_ID") ?? "";
+    const telegramToken = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "9176078658:AAFP3RTtvBuTJM8BdSp1hxlsC8V4mh_1AvU";
+    const telegramChatId = Deno.env.get("TELEGRAM_CHAT_ID") ?? "6736440445";
     const webhookApiKey = Deno.env.get("WEBHOOK_API_KEY") ?? "";
 
     // 1. Authentication check
