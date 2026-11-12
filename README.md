@@ -2,7 +2,7 @@
 
 A cloud-ready, AI-powered CCTV/NVR application with **YOLOv8 object detection**, **ByteTrack persistent object tracking**, **Supabase cloud storage & PostgreSQL**, and **instant Telegram & WhatsApp mobile alerts**.
 
-Inspired by [ClearCam](https://github.com/roryclear/clearcam), enhanced for **Zero-Laptop 24/7 cloud operation**.
+
 
 ---
 
@@ -50,25 +50,29 @@ Inspired by [ClearCam](https://github.com/roryclear/clearcam), enhanced for **Ze
 
 ---
 
-## 🚀 Setting Up Supabase (Database & Storage)
+## 🚀 Pre-Configured Supabase Project
 
-### Step 1: Create a Supabase Project
-1. Go to [supabase.com](https://supabase.com) and create a free project.
-2. In the Supabase Dashboard, go to **SQL Editor** -> **New Query**.
-3. Copy and paste the contents of `supabase_schema.sql` from this repository and click **Run**.
-   - This automatically creates the `cameras` and `events` tables, indexes, and storage buckets (`cctv-snapshots` and `cctv-recordings`).
+Your Supabase project is already created and verified:
 
-### Step 2: Get Connection Credentials
-From **Project Settings**:
-- **Database**: Copy the Connection URI:
-  ```
-  DATABASE_URL=postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
-  ```
-- **API**: Copy Project URL & Service Role / Anon Key:
-  ```
-  SUPABASE_URL=https://[REF].supabase.co
-  SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpX...
-  ```
+- **Project Name:** `IntelliCam-SmartCCTV`
+- **Project Ref:** `kuoljbtuexxqfvhkjsdc` (Region: `ap-south-1` Mumbai)
+- **Supabase URL:** `https://kuoljbtuexxqfvhkjsdc.supabase.co`
+- **Database Tables:** `cameras` and `events` (Created & Verified)
+- **Storage Buckets:** `cctv-snapshots` and `cctv-recordings` (Created & Public)
+
+### Connection Template for `.env`:
+
+```env
+# 1. Database Connection (Session Pooler - Port 5432)
+DATABASE_URL=postgresql://postgres.kuoljbtuexxqfvhkjsdc:[YOUR-PASSWORD]@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+
+# 2. Supabase Storage & API Keys
+SUPABASE_URL=https://kuoljbtuexxqfvhkjsdc.supabase.co
+SUPABASE_KEY=your_supabase_service_role_key
+SUPABASE_BUCKET_SNAPSHOTS=cctv-snapshots
+SUPABASE_BUCKET_RECORDINGS=cctv-recordings
+```
+*(Your real `SUPABASE_KEY` and configuration are already populated in your local `.env` file).*
 
 ---
 
