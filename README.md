@@ -1,4 +1,4 @@
-# 🎥 CC TV — AI-Powered Cloud Surveillance & Alert System
+# 🎥 IntelliCam-SmartCCTV — AI-Powered Cloud Surveillance & Alert System
 
 A cloud-ready, AI-powered CCTV/NVR application with **YOLOv8 object detection**, **ByteTrack persistent object tracking**, **Supabase cloud storage & PostgreSQL**, and **instant Telegram & WhatsApp mobile alerts**.
 
@@ -55,7 +55,7 @@ A cloud-ready, AI-powered CCTV/NVR application with **YOLOv8 object detection**,
 Your Supabase project is already created and verified:
 
 - **Project Name:** `IntelliCam-SmartCCTV`
-- **Project Ref:** `kuoljbtuexxqfvhkjsdc` (Region: `ap-south-1` Mumbai)
+- **Project Ref:** `kuoljbtuexxqfvhkjsdc` (Region: `aws-1-ap-southeast-2` Sydney)
 - **Supabase URL:** `https://kuoljbtuexxqfvhkjsdc.supabase.co`
 - **Database Tables:** `cameras` and `events` (Created & Verified)
 - **Storage Buckets:** `cctv-snapshots` and `cctv-recordings` (Created & Public)
@@ -64,7 +64,7 @@ Your Supabase project is already created and verified:
 
 ```env
 # 1. Database Connection (Session Pooler - Port 5432)
-DATABASE_URL=postgresql://postgres.kuoljbtuexxqfvhkjsdc:[YOUR-PASSWORD]@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+DATABASE_URL=postgresql+psycopg2://postgres.kuoljbtuexxqfvhkjsdc:[YOUR-PASSWORD]@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres
 
 # 2. Supabase Storage & API Keys
 SUPABASE_URL=https://kuoljbtuexxqfvhkjsdc.supabase.co
@@ -72,7 +72,7 @@ SUPABASE_KEY=your_supabase_service_role_key
 SUPABASE_BUCKET_SNAPSHOTS=cctv-snapshots
 SUPABASE_BUCKET_RECORDINGS=cctv-recordings
 ```
-*(Your real `SUPABASE_KEY` and configuration are already populated in your local `.env` file).*
+*(Your real `SUPABASE_KEY`, database password, and configuration are already populated in your local `.env` file).*
 
 ---
 
@@ -80,6 +80,12 @@ SUPABASE_BUCKET_RECORDINGS=cctv-recordings
 
 Telegram sends rich photo snapshots to your phone in under 1 second without any cost.
 
+> **Pre-configured in your `.env`**:
+> - **Bot:** `@DN_ROSHAN`
+> - **Chat ID:** `6736440445`
+> - **Status:** Enabled and verified live!
+
+If setting up a new bot:
 1. **Create a Bot**:
    - Open Telegram and search for `@BotFather`.
    - Send `/newbot`, name your bot (e.g. `MyHomeCCTVBot`), and copy the **Bot Token** (e.g. `712345678:AAH...`).
@@ -91,8 +97,8 @@ Telegram sends rich photo snapshots to your phone in under 1 second without any 
 4. **Set in `.env`**:
    ```env
    TELEGRAM_ENABLED=True
-   TELEGRAM_BOT_TOKEN=712345678:AAH...
-   TELEGRAM_CHAT_ID=987654321
+   TELEGRAM_BOT_TOKEN=your_bot_token_here
+   TELEGRAM_CHAT_ID=your_chat_id_here
    ```
 
 ---
@@ -177,7 +183,7 @@ https://<project-ref>.supabase.co/functions/v1/motion-alert?api_key=zzz
 
 ```bash
 # 1. Clone & enter directory
-cd "CC TV"
+cd "IntelliCam-SmartCCTV"
 
 # 2. Virtual environment
 python -m venv venv
@@ -201,7 +207,7 @@ Dashboard is live at **http://localhost:8080**.
 ## 📁 Project Structure
 
 ```
-CC TV/
+IntelliCam-SmartCCTV/
 ├── app.py                      # Flask REST API, WebSockets & Camera Webhook
 ├── config.py                   # Configuration (Supabase, Telegram, WhatsApp)
 ├── models.py                   # SQLAlchemy models (PostgreSQL / SQLite)

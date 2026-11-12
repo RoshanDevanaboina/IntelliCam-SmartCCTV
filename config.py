@@ -12,10 +12,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_database_url():
-    """Retrieve and format database URI, converting postgres:// to postgresql:// if needed."""
+    """Retrieve and format database URI, ensuring psycopg2 driver is used for PostgreSQL."""
     url = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'cctv.db')}")
     if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql://", 1)
+        url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return url
 
 
